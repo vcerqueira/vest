@@ -20,7 +20,7 @@ ft_transformation <-
     cat("Transform: SMA\n")
     T_SMA <- ft_t_sma(x)
 
-    cat("Transform: WINS\n")
+    cat("Transform: WIN\n")
     T_WINS <- ft_t_wins(x)
 
     cat("Transform: BoxCox\n")
@@ -34,10 +34,11 @@ ft_transformation <-
         T_DIFF = T_DIFF,
         T_DIFF2=T_DIFF2,
         T_SMA = T_SMA,
-        T_WINS = T_WINS,
-        T_BC = T_BC)
+        T_BC = T_BC,
+        T_WINS=T_WINS)
 
-    keys <- list(k_scale = scale_keys, lambda = lambda)
+    keys <- list(k_scale = scale_keys,
+                 lambda = lambda)
 
     list(keys = keys, tlist = transformation_list)
   }
@@ -74,6 +75,75 @@ ft_t_diff <-
     xs
   }
 
+
+#' First Differences transf.asdada
+#'
+#' @param x df
+#'
+#' @export
+ft_t_fourier_sin <-
+  function(x, freq, past_l) {
+    #require(vest)
+    #x <- rnorm(100)
+    #x <- my_embedd(x,10)
+    k.x <- ncol(x)
+    x.ur0 <- x.ur <- unroll_embedd(x)
+
+    if (!is.null(past_l)) {
+      dummy_y <- rep(0, times=past_l)
+      x.ur <- c(dummy_y, x.ur)
+    }
+
+    x.ur <- ts(x.ur, frequency = freq)
+
+    f_transf <- fourier(x.ur, K=1)
+    sin_curve <- f_transf[,1]
+
+    sin_curve <- tail(sin_curve, length(x.ur0))
+
+    x.rr <- my_embedd(sin_curve, m=k.x, 1, 1)
+    x.rr <- x.rr[,ncol(x.rr):1]
+
+    colnames(x.rr) <- paste0("FOURS",0:(ncol(x.rr)-1))
+
+    x.rr
+  }
+
+
+#' First Differsssaassadences transf.
+#'
+#' @param x df
+#'
+#' @export
+ft_t_fourier_cos <-
+  function(x, freq, past_l) {
+    #require(vest)
+    #x <- rnorm(100)
+    #x <- my_embedd(x,10)
+    k.x <- ncol(x)
+    x.ur0 <- x.ur <- unroll_embedd(x)
+
+    if (!is.null(past_l)) {
+      dummy_y <- rep(0, times=past_l)
+      x.ur <- c(dummy_y, x.ur)
+    }
+
+    x.ur <- ts(x.ur, frequency = freq)
+
+    f_transf <- fourier(x.ur, K=1)
+    sin_curve <- f_transf[,2]
+
+    sin_curve <- tail(sin_curve, length(x.ur0))
+
+    x.rr <- my_embedd(sin_curve, m=k.x, 1, 1)
+    x.rr <- x.rr[,ncol(x.rr):1]
+
+    colnames(x.rr) <- paste0("FOURC",0:(ncol(x.rr)-1))
+
+    x.rr
+  }
+
+
 #' Second Differences transf.
 #'
 #' @param x df
@@ -92,6 +162,7 @@ ft_t_diff2 <-
     colnames(xs) <- paste0("DIFF2",0:(ncol(xs)-1))
     xs
   }
+
 
 #' DWT transf.
 #'
@@ -155,9 +226,13 @@ ft_t_sma <-
     xs
   }
 
+
+
 #' Winsorization transf.
 #'
 #' @param x df
+#'
+#' @import DescTools
 #'
 #' @export
 ft_t_wins <-
@@ -166,9 +241,7 @@ ft_t_wins <-
 
     xs <-
       apply(x, 1, function(ev) {
-        trim.ids <- order(abs(ev), decreasing = TRUE)[1:n]
-        ev[trim.ids] <- stats::median(ev)
-        ev
+        Winsorize(ev)
       })
 
     xs <- t(xs)
@@ -204,6 +277,127 @@ ft_t_boxcox <-
     colnames(x.rr) <- paste0("BC",0:(ncol(x.rr)-1))
 
     list(x=x.rr, lambda=lambda)
+  }
+
+
+
+#' Seasonal differencing
+#'
+#' @param x df
+#' @param freq freq
+#' @param last_freq_x last_freq_x
+#'
+#' @export
+ft_t_sdiff <-
+  function(x, freq, last_freq_x = NULL) {
+
+    k.x <- ncol(x)
+    x.ur <- unroll_embedd(x)
+
+    surr_x <- ts(x.ur, frequency = freq)
+
+    if (!is.null(last_freq_x)) {
+      surr_x <- c(last_freq_x, surr_x)
+    }
+
+    dx <- diff(surr_x, lag = freq)
+    dx <- tail(dx, length(x.ur))
+
+    dlen <- length(x.ur) - length(dx)
+    if (dlen > 0) {
+      dx <- c(rep(NA_real_, times = dlen), dx)
+    }
+
+    x.rr <- my_embedd(dx, m=k.x, 1, 1)
+
+    colnames(x.rr) <- paste0("SD",0:(ncol(x.rr)-1))
+
+    list(x=x.rr, last_freq_x=tail(x.ur, freq))
+  }
+
+
+
+#' Seasonal adjustment
+#'
+#' @param x df
+#' @param freq freq
+#' @param past_x last_freq_x
+#'
+#' @export
+ft_t_seasadj <-
+  function(x, freq, past_x = NULL) {
+
+    k.x <- ncol(x)
+    nx <- nrow(x)
+    x.ur <- unroll_embedd(x)
+
+    if (!is.null(past_x)) {
+      x.ur <- c(past_x, x.ur)
+    }
+
+    surr_x <- ts(x.ur, frequency = freq)
+
+    xdecomp <- forecast::mstl(surr_x)
+
+    xadj <- forecast::seasadj(xdecomp)
+
+    xadj <- tail(xadj, length(x.ur))
+
+    dlen <- length(x.ur) - length(xadj)
+    if (dlen > 0) {
+      xadj <- c(rep(NA_real_, times = dlen), xadj)
+    }
+
+    x.rr <- my_embedd(xadj, m=k.x, 1, 1)
+
+    colnames(x.rr) <- paste0("SA",0:(ncol(x.rr)-1))
+
+    x.rr <- tail(x.rr, nx)
+
+    list(x=x.rr, past_x=x.ur)
+  }
+
+
+#' Seasonal component
+#'
+#' @param x df
+#' @param freq freq
+#' @param past_x last_freq_x
+#'
+#' @export
+ft_t_seascomp <-
+  function(x, freq, past_x = NULL) {
+
+    k.x <- ncol(x)
+    nx <- nrow(x)
+    x.ur <- unroll_embedd(x)
+
+
+    if (!is.null(past_x)) {
+      x.ur <- c(past_x, x.ur)
+    }
+
+    surr_x <- ts(x.ur, frequency = freq)
+
+    xdecomp <- forecast::mstl(surr_x)
+
+    xadj <-
+      xdecomp[,grep("Seaso", colnames(xdecomp))]
+
+    xadj <- tail(xadj, length(x.ur))
+
+    dlen <- length(x.ur) - length(xadj)
+    if (dlen > 0) {
+      xadj <- c(rep(NA_real_, times = dlen), xadj)
+    }
+
+    x.rr <- my_embedd(xadj, m=k.x, 1, 1)
+
+    colnames(x.rr) <- paste0("SEC",0:(ncol(x.rr)-1))
+
+    x.rr <- tail(x.rr, nx)
+
+    list(x=x.rr, past_x=x.ur)
   }
 
 

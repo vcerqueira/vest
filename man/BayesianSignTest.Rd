@@ -2,8 +2,7 @@
 % Please edit documentation in R/utils.r
 \name{BayesianSignTest}
 \alias{BayesianSignTest}
-\title{Bayes Sign Test
-from https://github.com/BayesianTestsML/tutorial}
+\title{Bayes Sign Test}
 \usage{
 BayesianSignTest(diffVector, rope_min, rope_max)
 }
@@ -16,5 +15,4 @@ BayesianSignTest(diffVector, rope_min, rope_max)
 }
 \description{
 Bayes Sign Test
-from https://github.com/BayesianTestsML/tutorial
 }

@@ -19,6 +19,15 @@ setMethod("get_importance",
 
             X <- object@X
             y <- object@y
+
+            if (is.null(y)) {
+              stop("null y")
+            }
+
+            if (is.numeric(y)) {
+              y <- data.frame(target = y)
+            }
+
             cn <- colnames(y)
             Dyns <- object@Dynamics
 
@@ -94,60 +103,6 @@ setMethod("get_summary",
           })
 
 
-#' Feature clean up generic
-#'
-#' @param object object of class VEST
-#'
-#' @export
-setGeneric("cleanup_feats",
-           function(object) {
-             standardGeneric("cleanup_feats")
-           })
-
-#' Feature clean up method
-#'
-#' @param object object of class VEST
-#'
-#' @import caret
-#' @import DMwR
-#'
-#' @export
-setMethod("cleanup_feats",
-          signature("VEST"),
-          function(object) {
-            bad_feats <- numeric()
-
-            if (any(sapply(object@Dynamics, is.infinite))) {
-              object@Dynamics <- replace_inf(object@Dynamics)
-            }
-
-            rm_NA <- manyNAs(t(object@Dynamics), .7)
-
-            bad_feats <- c(bad_feats,unname(rm_NA))
-
-            rm_nzv <-
-              nearZeroVar(object@Dynamics,uniqueCut = .5)
-
-            bad_feats <- sort(unique(c(bad_feats,rm_nzv)))
-
-            if (length(bad_feats) > 0) {
-              object@Dynamics <- object@Dynamics[,-bad_feats]
-            }
-
-            object@keys[["bad_feats"]] <- bad_feats
-
-            if (any(is.na(object@Dynamics))) {
-              object@Dynamics <- soft_completion(object@Dynamics)$x
-            }
-
-            typical_vals <- apply(object@Dynamics, 2, median)
-
-            object@keys[["typical_vals"]] <- typical_vals
-
-            object
-          })
-
-
 #' Features summary
 #'
 #' @param x num vec
@@ -155,9 +110,7 @@ setMethod("cleanup_feats",
 #' @export
 ft_summary <-
   function(x) {
-    x[is.infinite(x)] <- NA_real_
-    x[is.na(x)] <- median(x, na.rm=TRUE)
-
+    x1<<-x
     if (all(is.na(x))) {
       return(
         c(
@@ -196,6 +149,9 @@ ft_summary <-
         )
       )
     }
+
+    x[is.infinite(x)] <- NA_real_
+    x[is.na(x)] <- median(x, na.rm=TRUE)
 
     cat("Computing rel dispersion ...\n")
     D.relative_dispersion <- relative_dispersion(x)
@@ -299,10 +255,13 @@ ft_summary <-
     D.npeak <- npeaks(x)
 
     cat("Computing poincare variability\n")
-    D.poinc <- unname(poincare_variability(x))
+    suppressWarnings(D.poinc <- unname(poincare_variability(x)))
 
     cat("Getting lp\n")
     D.lp <- unname(x[length(x)])
+
+    # cat("Getting 1st\n")
+    # D.fp <- unname(x[1])
 
     DYNAMICS <-
       c(
@@ -348,28 +307,5 @@ ft_summary <-
   }
 
 
-#' Get fourieer terms for test
-#'
-#' @param y time series
-#' @param nterms nterms
-#' @param freq frequency
-#' @param h horizon
-#'
-#' @keywords internal
-#' @import forecast
-#'
-#' @export
-get_fourier_terms_ <-
-  function(y, nterms, freq, h) {
-    #require(forecast)
-    y <- ts(y, frequency = freq)
-
-    fterms <- fourier(y, K = nterms, h=h)
-
-    colnames(fterms) <- paste0("DHR.F", 1:ncol(fterms))
-    fterms <- as.data.frame(fterms)
-
-    fterms
-  }
 
 

@@ -1,38 +1,3 @@
-#' XGB training function
-#'
-#' @param form formula
-#' @param train train set, data.frame
-#'
-#' @export
-XGB.train <-
-  function(form, train) {
-    if (any(is.na(train))) {
-      stop("Misssing values in train data")
-    }
-
-    model <- get_xgb_model(form,train)
-
-    model
-  }
-
-
-#' XGB predict function
-#'
-#' @param model model from XGB.train fun
-#' @param test test set, data.frame
-#'
-#' @export
-XGB.predict <-
-  function(model, test) {
-    if (any(is.na(test))) {
-      stop("Misssing values in test data")
-    }
-
-    preds <- get_xgb_preds(model, test)
-
-    preds
-  }
-
 #' Model tree using cubist
 #'
 #' @param form formula
@@ -43,7 +8,7 @@ XGB.predict <-
 #'
 #' @export
 M5.train <-
-  function(form, train, iterations=5) {
+  function(form, train, iterations=25) {
     if (any(is.na(train))) {
       stop("Misssing values in train data")
     }
@@ -78,12 +43,12 @@ M5.predict <-
   }
 
 
-#' Wrapper for M5 model
+#' wrappersadda
 #'
-#' @param form formula
-#' @param train train set, data.frame
-#' @param test test set, data.frame
-#' @param ... other parameters to m5.train
+#' @param form form
+#' @param train sadasda
+#' @param test sasa
+#' @param ... sadada
 #'
 #' @export
 M5.cycle <-
@@ -93,11 +58,13 @@ M5.cycle <-
     M5.predict(model, test)
   }
 
-#' Wrapper for M5 cycle using training data
+#' wrapperq
 #'
-#' @param form formula
-#' @param train train set, data.frame
-#' @param ... other pars, to M5.cycle
+#' @param form forms
+#' @param train sadasdsa
+#' @param ... sadadas
+#'
+#' @import Metrics
 #'
 #' @export
 M5.self_cycle <-
@@ -114,43 +81,65 @@ M5.self_cycle <-
   }
 
 
-#' Wrapper M5 multistep cycle
+#' lasso
 #'
-#' @param train train set, data.frame
-#' @param test test set, data.frame
-#' @param h forecasting horizon
+#' @param form formula
+#' @param train train
+#'
+#' @import glmnet
 #'
 #' @export
-M5.multi_step_cycle <-
-  function(train, test, h) {
-    form <- target~ .
-
-    targets <- paste0("target",1:h)
-    tgti <- which(colnames(train) %in% targets)
-
-    X <- train[,-tgti]
-    y <- train[,tgti]
-
-    X.test <- test[,-tgti]
-    X.test.tgt <- cbind.data.frame(X.test,target=-1)
-
-    train1 <- cbind.data.frame(X, target=y[,"target1"])
-
-    model <- M5.train(form, train1, iterations = 5)
-
-    x <- X.test.tgt
-    yhat <- matrix(NA, nrow=nrow(x), ncol=h)
-    yhat[,1] <- M5.predict(model, x)
-    for (i in 2:h) {
-      x[,1:(ncol(x)-1)] <- x[,2:ncol(x)]
-      x[,"tm1"] <- yhat[,i-1]
-
-      yhati <- M5.predict(model, x)
-
-      yhat[,i] <- yhati
+LASSO.train <-
+  function(form, train) {
+    #SC <- soft_completion(train)
+    if (any(is.na(train))) {
+      stop("misssing values in train data")
     }
-    colnames(yhat) <- colnames(y)
 
-    yhat
+    alpha <- 1
+
+    x <- model.matrix(form, train)
+    y <- get_y_val(form, train)
+
+    m0 <- cv.glmnet(x,y, alpha=alpha,family = "gaussian")
+
+    m <-
+      glmnet(x,
+             y,
+             alpha = alpha,
+             family = "gaussian",
+             lambda = m0$lambda.min)
+
+    m$form <- form
+
+    m
   }
 
+
+#' glme pred
+#'
+#' @param model model
+#' @param test test
+#'
+#' @import glmnet
+#'
+#' @export
+LASSO.predict <-
+  function(model, test) {
+    if (any(is.na(test))) {
+      stop("misssing values in test data")
+    }
+
+    #x <- model.matrix(model$form, test)
+    cols_tst <- colnames(test)
+    cols_in_m <- model$beta@Dimnames[[1]]
+
+    model_names <- cols_tst[cols_tst %in% cols_in_m]
+    model_names <- c(model_names,as.character(model$form[[2]]))
+
+    testx <- test[,model_names]
+
+    x <- model.matrix(model$form, testx)
+
+    unname(predict(model, x)[,1])
+  }

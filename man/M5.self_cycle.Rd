@@ -2,17 +2,17 @@
 % Please edit documentation in R/learning-algorithms.r
 \name{M5.self_cycle}
 \alias{M5.self_cycle}
-\title{Wrapper for M5 cycle using training data}
+\title{wrapperq}
 \usage{
 M5.self_cycle(form, train, ...)
 }
 \arguments{
-\item{form}{formula}
+\item{form}{forms}
 
-\item{train}{train set, data.frame}
+\item{train}{sadasdsa}
 
-\item{...}{other pars, to M5.cycle}
+\item{...}{sadadas}
 }
 \description{
-Wrapper for M5 cycle using training data
+wrapperq
 }

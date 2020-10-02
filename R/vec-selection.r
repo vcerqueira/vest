@@ -1,23 +1,34 @@
-#' Feature Selection, best summary by rep
+#' Feature Selection, best summary by rep2
 #'
 #' @param x object of class VEST
 #'
 #' @export
-feat_select_vest <-
+feat_select_bf <-
   function(x) {
-    vi <-
-      lapply(x@importance,
-             function(h_vi) {
-               h_vi$RReliefFequalK
-             })
+    require(caret)
+    vi <- x@importance
 
-    vi <- rowMeans(as.data.frame(vi))
-    vi_positive <- vi[vi > 0]#beta=0
+
+    idx <- findCorrelation(cor(x@Dynamics), 0.95, exact = F)
+
+    uncorr_dyns <- names(x@Dynamics)[-idx]
+
+    vi <- as.data.frame(vi)
+    vi_positive <- rowMeans(vi)
+    vi_positive <- vi_positive[vi_positive>0]
+
+    vi_positive <- vi_positive[names(vi_positive) %in% uncorr_dyns]
 
     nms <- names(vi_positive)
     stats.ids <- grep("^tm", nms)
-    dyn_nms <- nms[-stats.ids]
-    vi_dyns <- vi_positive[-stats.ids]
+
+    if(length(stats.ids) > 0 ) {
+      dyn_nms <- nms[-stats.ids]
+      vi_dyns <- vi_positive[-stats.ids]
+    } else {
+      dyn_nms <- nms
+      vi_dyns <- vi_positive
+    }
 
     codes <- vapply(dyn_nms, split_by., character(2))
 
@@ -43,6 +54,29 @@ feat_select_vest <-
   }
 
 
+#' Feature Selection, best summary by rep3
+#'
+#' @param x object of class VEST
+#'
+#' @export
+feat_select_corr <-
+  function(x) {
+    require(caret)
+
+
+    idx <- findCorrelation(cor(x@Dynamics), 0.95, exact = F)
+
+    chosen_feats <- names(x@Dynamics)[-idx]
+
+    dyncols <- colnames(x@Dynamics)
+
+    poor_feats <- which(!dyncols %in% chosen_feats)
+
+    chosen_DYNS <- x@Dynamics[,-poor_feats,drop=FALSE]
+
+    chosen_DYNS
+  }
+
 
 #' Feature Selection, best rep
 #'
@@ -52,11 +86,7 @@ feat_select_vest <-
 feat_select_br <-
   function(x) {
 
-    vi <-
-      lapply(x@importance,
-             function(h_vi) {
-               h_vi$RReliefFequalK
-             })
+    vi <- x@importance
 
     vi <- rowMeans(as.data.frame(vi))
 
@@ -91,4 +121,3 @@ feat_select_br <-
 
     chosen_DYNS
   }
-

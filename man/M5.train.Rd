@@ -4,7 +4,7 @@
 \alias{M5.train}
 \title{Model tree using cubist}
 \usage{
-M5.train(form, train, iterations = 5)
+M5.train(form, train, iterations = 25)
 }
 \arguments{
 \item{form}{formula}

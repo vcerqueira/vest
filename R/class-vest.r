@@ -72,7 +72,7 @@ setMethod("get_transformations",
             FT_TRANS <- ft_transformation(object@X, freq)
 
             object@Z <- FT_TRANS$tlist
-            object@keys <- FT_TRANS$keys
+            object@keys <- c(object@keys, FT_TRANS$keys)
 
             object
           })
@@ -85,20 +85,47 @@ setMethod("get_transformations",
 #' @export
 setMethod("predict",
           signature("VEST"),
-          function(object, x) {
+          function(object, x, update_last_rows=FALSE) {
             object@X <- x
             object@Dynamics <- data.frame()
             object@y <- data.frame()
 
             object <- apply_transformations(object)
+            #sapply(object@Z, dim)
+            #object@keys$last_freq_x
 
             object <- get_summary(object)
             inner.dynamics <- object@Dynamics
 
-            outer.dynamics <- predict_outer_dynamics(object, x)
-            outer.dynamics <- tail(outer.dynamics, nrow(inner.dynamics))
+            #outer.dynamics <- predict_outer_dynamics(object, x)
+            #outer.dynamics <- tail(outer.dynamics, nrow(inner.dynamics))
 
-            DYNS <- cbind.data.frame(inner.dynamics, outer.dynamics)
+            DYNS <- inner.dynamics#cbind.data.frame(inner.dynamics, outer.dynamics)
+            # upd last rows
+
+            if (update_last_rows) {
+              print("updating last rows")
+              object@keys$last_freq_x <-
+                c(object@keys$last_freq_x,
+                  head(x,1)[,"tm1"])
+
+              object@keys$last_freq_x <- tail(object@keys$last_freq_x, -1)
+
+              ##
+              object@keys$past_x <-
+                c(object@keys$past_x,
+                  head(x,1)[,"tm1"])
+
+              object@keys$past_x <- tail(object@keys$past_x, -1)
+
+
+              object@keys$past_l <-
+                c(object@keys$past_l,
+                  head(x,1)[,"tm1"])
+
+              object@keys$past_l <- tail(object@keys$past_l, -1)
+            }
+
 
             bf <- object@keys$bad_feats
             if (length(bf) > 0) {
@@ -146,6 +173,8 @@ setMethod("apply_transformations",
               stop("No transformation available.")
             }
 
+
+
             TLIST <-
               lapply(nms,
                      function(o) {
@@ -155,9 +184,23 @@ setMethod("apply_transformations",
                                             center = object@keys$k_scale[["center"]],
                                             scale = object@keys$k_scale[["scale"]])
                                },
+                               "T_COS" = {
+                                 ft_t_fourier_cos(object@X,
+                                                  freq = object@keys$freq,
+                                                  past_l = object@keys$past_l)
+                               },
+                               "T_SIN" = {
+                                 ft_t_fourier_sin(object@X,
+                                                  freq = object@keys$freq,
+                                                  past_l = object@keys$past_l)
+                               },
                                "T_DWT" = {
                                  ft_t_dwt(object@X)
                                },
+                               "T_WINS" = {
+                                 ft_t_wins(object@X)
+                               },
+
                                "T_DIFF" = {
                                  ft_t_diff(object@X)
                                },
@@ -167,9 +210,6 @@ setMethod("apply_transformations",
                                "T_BC" = {
                                  ft_t_boxcox(object@X,
                                              lambda = object@keys$lambda)$x
-                               },
-                               "T_WINS" = {
-                                 ft_t_wins(object@X)
                                },
                                "T_SMA" = {
                                  ft_t_sma(object@X)
@@ -189,118 +229,29 @@ setMethod("apply_transformations",
 #' @param x Embedded time series
 #' @param targets target column names
 #' @param freq frequency of the time series
+#' @param compute_importance compute_importance
 #'
 #' @export
 feature_engineering <-
-  function(x, targets, freq) {
+  function(x, targets, freq, compute_importance=TRUE) {
     cat("Creating class object\n")
     xobj <- VEST(targets, x)
     cat("Transform...\n")
-    xobj <- get_transformations(object = xobj)
     xobj@keys[["freq"]] <- freq
+    xobj <- get_transformations(object = xobj)
     cat("Summarise\n")
     xobj <- get_summary(object = xobj)
-    cat("Get outer dynamics\n")
-    xobj <- get_outer_dynamics(object = xobj)
+    #cat("Get outer dynamics\n")
+    #xobj <- get_outer_dynamics(object = xobj)
     cat("Cleanup\n")
     xobj <- cleanup_feats(object = xobj)
-    cat("Variable Importance\n")
-    xobj <- get_importance(xobj)
+
+    if (compute_importance) {
+      cat("Variable Importance\n")
+      xobj <- get_importance(xobj)
+    }
 
     xobj
   }
 
-#' Get outer dynamics
-#' DHR
-#'
-#' @param object object of class VEST
-#'
-#' @export
-get_outer_dynamics <-
-  function(object) {
-    nterms <- 3
-    fterms <- get_fourier_terms(object, nterms = nterms)
-
-    object@keys[["y_tr_tm1"]] <- object@X[,"tm1"]
-    object@keys[["n_f_terms"]] <- nterms
-
-    outer_dynamics <- fterms
-
-    object@Dynamics <-
-      cbind.data.frame(object@Dynamics, outer_dynamics)
-
-    object@keys[["last_p_rows"]] <- tail(object@X, ncol(object@X))
-
-    object
-  }
-
-#' Dynamic Harmonic Regre. Terms
-#'
-#' @param object object of class VEST
-#' @param nterms no terms. def to 3
-#'
-#' @import forecast
-#'
-#' @export
-get_fourier_terms <-
-  function(object, nterms=3) {
-    x <- object@X
-
-    id <- grep("^tm1$", colnames(x))
-    y <- x[,id]
-
-    y <- ts(y, frequency = object@keys$freq)
-
-    fterms <- fourier(y, K = nterms)
-
-    colnames(fterms) <- paste0("DHR.F", 1:ncol(fterms))
-    fterms <- as.data.frame(fterms)
-
-    fterms
-  }
-
-
-#' Predicting new DHR terms
-#'
-#' @param object object of class VEST
-#' @param nterms no of terms
-#' @param h forecasting horizon
-#'
-#' @import forecast
-#'
-#' @export
-pred_fourier_terms <-
-  function(object, nterms=3, h) {
-    y <- object@keys$y_tr_tm1
-    y <- ts(y, frequency = object@keys$freq)
-
-    fterms <- fourier(y, K = nterms, h=h)
-
-    colnames(fterms) <- paste0("DHR.F", 1:ncol(fterms))
-    fterms <- as.data.frame(fterms)
-
-    fterms
-  }
-
-
-#' Predicting new outer dynamics
-#'
-#' @param object object of class VEST
-#' @param test new observations
-#'
-#' @export
-predict_outer_dynamics <-
-  function(object, test) {
-
-    nterms <- object@keys$n_f_terms
-    fterms <-
-      pred_fourier_terms(object,
-                         nterms = nterms,
-                         h=nrow(test))
-
-
-    outer_dynamics <- fterms
-
-    outer_dynamics
-  }
 

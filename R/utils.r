@@ -1,36 +1,56 @@
+#' Importance Scores
+#'
+#' @param form formula
+#' @param x dataset
+#'
+#' @export
+estimate_fi <-
+  function(form, x) {
+
+    fi <- CORElearn::attrEval(form, x,
+                              estimator = "RReliefFequalK")
+
+    fi
+  }
+
+
+
 #' Bayes Sign Test
-#' from https://github.com/BayesianTestsML/tutorial
 #'
 #' @param diffVector diffVector
 #' @param rope_min rope_min
 #' @param rope_max rope_min
 #'
 #' @export
-BayesianSignTest <-
-  function(diffVector,rope_min,rope_max) {
-    #library(MCMCpack)
+BayesianSignTest <- function(diffVector,rope_min, rope_max) {
+  #rope_min<-rope[1]
+  #rope_max<-rope[2]
 
-    samples <- 10000
+  library(MCMCpack)
 
-    #build the vector 0.5 1 1 ....... 1
-    weights <- c(0.5,rep(1,length(diffVector)))
+  samples <- 3000
 
-    #add the fake first observation in 0
-    diffVector <- c (0, diffVector)
+  #build the vector 0.5 1 1 ....... 1
+  weights <- c(0.5,rep(1,length(diffVector)))
 
-
-    #for the moment we implement the sign test. Signedrank will follows
-    probLeft <- mean (diffVector < rope_min)
-    probRope <- mean (diffVector > rope_min & diffVector < rope_max)
-    probRight <- mean (diffVector > rope_max)
+  #add the fake first observation in 0
+  diffVector <- c (0, diffVector)
 
 
-    results = list ("probLeft"=probLeft, "probRope"=probRope,
-                    "probRight"=probRight)
+  #for the moment we implement the sign test. Signedrank will follows
+  probLeft <- mean (diffVector < rope_min)
+  probRope <- mean (diffVector > rope_min & diffVector < rope_max)
+  probRight <- mean (diffVector > rope_max)
 
-    return (results)
+  r <- rdirichlet(samples, c(probLeft,probRope,probRight))
+  r <- colMeans(r)
 
-  }
+  results = c("probLeft"=r[1], "probRope"=r[2],"probRight"=r[3])
+
+  return (results)
+
+}
+
 
 
 #' Get target vector
@@ -101,6 +121,23 @@ ts_holdout <-
 
     list(train=train,test=test)
   }
+
+
+#' holdout
+#'
+#' @param x x
+#' @param beta bear
+#'
+#' @export
+myholdout2 <- function(x, beta) {
+  len <- NROW(x)
+  train <- x[ seq_len(beta * len), ]
+  test <-  x[-seq_len(beta * len), ]
+
+  list(train=train, test=test)
+}
+
+
 
 #' replace infs
 #'
@@ -204,3 +241,21 @@ soft_completion <- function(x) {
 }
 
 unlistn <- function(x) unlist(x,use.names = F)
+
+#' rep h origins
+#'
+#' @param n len
+#' @param nreps n sims
+#' @param train_size ratio of len
+#' @param test_size ratio of len
+#'
+#' @export
+rep_holdout_origins <-
+  function(n, nreps, train_size, test_size) {
+    tr_size <- as.integer(n * train_size)
+    ts_size <- as.integer(n * test_size)
+    selection_range <- (tr_size + 1):(n - ts_size + 1)
+    origins <- sample(selection_range, nreps)
+
+    origins
+  }

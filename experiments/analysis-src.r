@@ -113,21 +113,121 @@ bayes_analysis <-
   function(x, baseline, rope=2.5) {
     f <- BayesianSignTest
 
-    x <- do.call(rbind, x)
-    x <- as.data.frame(x)
+    #x <- do.call(rbind, x)
+    #x <- as.data.frame(x)
+
+    cn <- colnames(x)
+
+    x <- replace_inf(x)
     x <- x[complete.cases(x),]
+
+    colnames(x) <- cn
 
     xpd <-
       lapply(x,
              function(z) {
-               percentual_difference(z, x[,baseline])
+               pd <- percentual_difference(z, x[,baseline])
+               pd <- pd[!is.na(pd)]
+               pd
              })
+
 
     BA <-
       sapply(xpd,
              function(z) {
                r <-
                  f(diffVector = z,
+                   rope_min = -rope,
+                   rope_max = rope)
+
+               unlist(r)
+
+             })
+
+    BA <- t(BA)
+
+    colnames(BA) <- c("Benchmark loses", "Draw", "Benchmark wins")
+
+    BA
+  }
+
+
+BayesianSignedRank <- function(diffVector,rope_min,rope_max) {
+
+  library(MCMCpack)
+
+  samples <- 3000
+
+  #build the vector 0.5 1 1 ....... 1
+  weights <- c(0.5,rep(1,length(diffVector)))
+
+  #add the fake first observation in 0
+  diffVector <- c (0, diffVector)
+
+  sampledWeights <- rdirichlet(samples,weights)
+
+  winLeft <- vector(length = samples)
+  winRope <- vector(length = samples)
+  winRight <- vector(length = samples)
+
+  for (rep in 1:samples){
+    currentWeights <- sampledWeights[rep,]
+    for (i in 1:length(currentWeights)){
+      for (j in 1:length(currentWeights)){
+        product= currentWeights[i] * currentWeights[j]
+        if (diffVector[i]+diffVector[j] > (2*rope_max) ) {
+          winRight[rep] <- winRight[rep] + product
+        }
+        else if (diffVector[i]+diffVector[j] > (2*rope_min) ) {
+          winRope[rep] <- winRope[rep] + product
+        }
+        else {
+          winLeft[rep] <- winLeft[rep] + product
+        }
+      }
+    }
+    maxWins=max(winRight[rep],winRope[rep],winLeft[rep])
+    winners = (winRight[rep]==maxWins)*1 + (winRope[rep]==maxWins)*1 + (winLeft[rep]==maxWins)*1
+    winRight[rep] <- (winRight[rep]==maxWins)*1/winners
+    winRope[rep] <- (winRope[rep]==maxWins)*1/winners
+    winLeft[rep] <- (winLeft[rep]==maxWins)*1/winners
+  }
+
+
+  results = list ("winLeft"=mean(winLeft), "winRope"=mean(winRope),
+                  "winRight"=mean(winRight) )
+
+  return (results)
+
+}
+
+bayes_analysis2 <-
+  function(x, baseline, rope=2.5) {
+
+    x <- do.call(rbind, x)
+    x <- as.data.frame(x)
+
+    cn <- colnames(x)
+
+    x <- replace_inf(x)
+    x <- x[complete.cases(x),]
+
+    colnames(x) <- cn
+
+    xpd <-
+      lapply(x,
+             function(z) {
+               pd <- percentual_difference(z, x[,baseline])
+               pd <- pd[!is.na(pd)]
+               pd
+             })
+
+
+    BA <-
+      sapply(xpd,
+             function(z) {
+               r <-
+                 BayesianSignedRank(diffVector = z,
                    rope_min = -rope,
                    rope_max = rope)
 
@@ -157,6 +257,12 @@ bayes_plot_facets <-
     #head(xDF)
 
     colnames(xDF)[3]<-"Method" #<- c("Result", "Method", "value")
+
+    # ord <- order(xDF$value[xDF[,"Result"] == "Benchmark loses"], decreasing = T)
+    # fnames <- unique(as.character(xDF$Method))[ord]
+    # xDF$Method <-
+    #   factor(xDF$Method,levels = fnames)
+    #
 
     ggplot(xDF, aes(x = Method,
                     y = value,
@@ -189,8 +295,12 @@ bayes_plot <-
     xDF$Result <-
       factor(xDF$Result,levels = rn)
     #head(xDF)
-
     colnames(xDF) <- c("Result", "Method", "value")
+
+    # ord <- order(xDF$value[xDF[,"Result"] == "Benchmark loses"], decreasing = T)
+    # fnames <- unique(as.character(xDF$Method))[ord]
+    # xDF$Method <-
+    #   factor(xDF$Method,levels = fnames)
 
     ggplot(xDF, aes(x = Method,
                     y = value,
@@ -292,7 +402,7 @@ err_by_h_mase <-
 
     ASE <- abs(yhat-y) / masep
 
-    L <- mean(ASE)
+    L <- mean(rowMeans(ASE))
 
     avg_by_h <- colMeans(ASE)
 
@@ -321,7 +431,9 @@ avg_rank_plot <-
     ord <- names(sort(avg))
     methods <- names(avg)
 
-    ds <- data.frame(avg=avg,sdev=sdev, methods=methods, row.names = NULL)
+    ds <- data.frame(avg=avg,sdev=sdev,
+                     methods=methods,
+                     row.names = NULL)
     ds$methods <- factor(ds$methods, levels = ord)
 
 
@@ -329,17 +441,17 @@ avg_rank_plot <-
            aes(x = methods,
                y = avg)) +
       geom_bar(stat="identity",
-               fill="darkgrey") +
+               fill="lightblue3") +
       theme_minimal() +
-      theme(axis.text.x  = element_text(angle = 45,
-                                        size = 11)) +
-      theme(axis.text.y  = element_text(size = 12),
-            axis.title.y = element_text(size = 12)) +
       geom_errorbar(aes(ymin = avg - sdev,
                         ymax = avg + sdev),
                     width = .5,
                     position = position_dodge(.9)) +
       labs(x="",
            y="Avg. Rank",
-           title = "")
+           title = "") +
+      theme(axis.text.x  = element_text(angle = 30,
+                                        size = 10)) +
+      theme(axis.text.y  = element_text(size = 10),
+            axis.title.y = element_text(size = 10))
   }

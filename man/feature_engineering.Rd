@@ -4,7 +4,7 @@
 \alias{feature_engineering}
 \title{Feature Engineering Wrapper}
 \usage{
-feature_engineering(x, targets, freq)
+feature_engineering(x, targets, freq, compute_importance = TRUE)
 }
 \arguments{
 \item{x}{Embedded time series}
@@ -12,6 +12,8 @@ feature_engineering(x, targets, freq)
 \item{targets}{target column names}
 
 \item{freq}{frequency of the time series}
+
+\item{compute_importance}{compute_importance}
 }
 \description{
 Feature Engineering Wrapper

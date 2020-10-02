@@ -2,19 +2,19 @@
 % Please edit documentation in R/learning-algorithms.r
 \name{M5.cycle}
 \alias{M5.cycle}
-\title{Wrapper for M5 model}
+\title{wrappersadda}
 \usage{
 M5.cycle(form, train, test, ...)
 }
 \arguments{
-\item{form}{formula}
+\item{form}{form}
 
-\item{train}{train set, data.frame}
+\item{train}{sadasda}
 
-\item{test}{test set, data.frame}
+\item{test}{sasa}
 
-\item{...}{other parameters to m5.train}
+\item{...}{sadada}
 }
 \description{
-Wrapper for M5 model
+wrappersadda
 }
