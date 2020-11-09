@@ -10,6 +10,7 @@ freq <- frequency(AirPassengers)
 
 train <- head(dataset, -5)
 test <- tail(dataset, 5)
+testx <- test[,-grep("^target", colnames(test))]
 
 train_feats <-
   feature_engineering(x = train,
@@ -17,10 +18,10 @@ train_feats <-
                       freq = freq)
 
 train_dyns <- feat_select_corr(x = train_feats)
-test_dyns <- predict(train_feats, test)
+test_dyns <- predict(train_feats, testx)
 
 trainf <- cbind.data.frame(train_dyns, train)
 testf <- cbind.data.frame(test_dyns, test)
 
 model <- LASSO.train(form, trainf)
-preds <- LASSO.train(model, testf)
+preds <- LASSO.predict(model, testf)
